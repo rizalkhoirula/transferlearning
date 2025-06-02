@@ -16,7 +16,7 @@ import google.generativeai as genai
 # --- Konfigurasi Model & Data ---
 # Gunakan os.path.join untuk path yang lebih robust
 # Asumsi folder 'model' berada di direktori yang sama dengan main.py
-MODEL_PATH = os.path.join(os.path.dirname(__file__), 'model', 'padang_food_classifier_state_dict.pth')
+MODEL_PATH = os.path.join(os.path.dirname(__file__), 'padang_food_classifier_state_dict.pth')
 
 
 CLASS_NAMES = [
