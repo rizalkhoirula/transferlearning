@@ -4,9 +4,11 @@ from PIL import Image
 import io
 import torch
 from torchvision import transforms
-from transformers import ViTForImageClassification, ViTConfig # Pastikan ViTConfig juga diimport
-import os 
-from dotenv import load_dotenv 
+import torchvision.models as models # Added
+from torchvision.models import ViT_B_16_Weights # Added
+import torch.nn as nn # Added
+import os
+from dotenv import load_dotenv
 
 # Muat variabel lingkungan dari file .env
 load_dotenv() 
@@ -25,15 +27,11 @@ CLASS_NAMES = [
 ]
 NUM_CLASSES = len(CLASS_NAMES)
 
-MODEL_NAME_FOR_LOAD = "google/vit-base-patch16-224"
-
-# --- SOLUSI: Load model dasar dengan ignore_mismatched_sizes=True ---
-# Ini akan memuat arsitektur dan bobot semua lapisan KECUALI lapisan klasifikasi terakhir
-# karena kita akan menggantinya dengan bobot fine-tuned kita.
-model = ViTForImageClassification.from_pretrained(
-    MODEL_NAME_FOR_LOAD,
-    num_labels=NUM_CLASSES, # Ini penting untuk arsitektur akhir
-    ignore_mismatched_sizes=True # <-- INI PERUBAHAN UTAMA
+# --- Model Definition using Torchvision ---
+model = models.vit_b_16(weights=ViT_B_16_Weights.IMAGENET1K_SWAG_LINEAR_V1)
+model.heads = nn.Sequential(
+    nn.Dropout(p=0.2, inplace=True),
+    nn.Linear(in_features=768, out_features=NUM_CLASSES, bias=True)
 )
 
 try:
@@ -41,7 +39,7 @@ try:
     # Karena kita sudah menggunakan ignore_mismatched_sizes=True di atas,
     # load_state_dict ini seharusnya tidak lagi melihat mismatch pada head.
     model.load_state_dict(torch.load(MODEL_PATH, map_location=torch.device('cpu')))
-    model.eval() 
+    model.eval()
 except FileNotFoundError:
     raise HTTPException(status_code=500, detail=f"Model file not found at {MODEL_PATH}. Please ensure the 'model' directory exists and contains the model file.")
 except Exception as e:
@@ -89,7 +87,7 @@ async def predict_food_class(file: UploadFile = File(...)):
         with torch.no_grad():
             outputs = model(image_transformed)
         
-        predicted_idx = torch.argmax(outputs.logits, dim=1).item()
+        predicted_idx = torch.argmax(outputs, dim=1).item() # torchvision ViT directly outputs logits
         predicted_class_name = CLASS_NAMES[predicted_idx]
 
         prompt_llm = f"Berikan resep lengkap, perkiraan kalori, dan informasi nutrisi umum untuk makanan bernama '{predicted_class_name}' dalam format JSON. Format JSON harus memiliki kunci 'resep', 'kalori', dan 'nutrisi'. Contoh: {{'resep': '...', 'kalori': '...', 'nutrisi': '...'}}."
